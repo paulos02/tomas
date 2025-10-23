@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Checklist – Enxoval do Bebé</title>
+  <meta name="description" content="Checklist de enxoval do bebé com persistência local, exportação/importação de estado e filtros." />
+  <style>
+    :root {
+      --bg: #0f172a;           /* slate-900 */
+      --panel: #111827;        /* gray-900 */
+      --muted: #6b7280;        /* gray-500 */
+      --text: #e5e7eb;         /* gray-200 */
+      --accent: #38bdf8;       /* sky-400 */
+      --accent-2: #22c55e;     /* green-500 */
+      --danger: #ef4444;       /* red-500 */
+      --ring: #7dd3fc;         /* sky-300 */
+      --card: #0b1220;         /* deep panel */
+      --border: #1f2937;       /* gray-800 */
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 110% -10%, #1f2937 0%, var(--bg) 50%);
+      color: var(--text);
+    }
+    .container { max-width: 980px; margin: 0 auto; padding: 24px; }
+    header { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    h1 { font-weight: 800; letter-spacing: .2px; margin: 0; font-size: clamp(22px, 2.8vw, 34px); }
+    .subtitle { color: var(--muted); font-size: 14px; }
+    .toolbar {
+      background: linear-gradient(180deg, #0b1220, #0c1322);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 10px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05);
+    }
+    .toolbar > * { margin: 4px 0; }
+    .btn { cursor: pointer; border: 1px solid var(--border); background: #0a0f1d; color: var(--text); padding: 8px 12px; border-radius: 10px; font-weight: 600; }
+    .btn:hover { border-color: var(--ring); }
+    .btn-primary { background: linear-gradient(180deg, #0ea5e9, #0284c7); border-color: transparent; color: white; }
+    .btn-primary:hover { filter: brightness(1.03); }
+    .btn-danger { background: linear-gradient(180deg, #ef4444, #b91c1c); border-color: transparent; color: white; }
+    .input, select { background: #0a0f1d; border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 10px; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } }
+    section.category { background: linear-gradient(180deg, #0b1220, #0c1322); border: 1px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05); }
+    .cat-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .cat-title h2 { margin: 0; font-size: 16px; letter-spacing: .3px; text-transform: uppercase; color: #cbd5e1; }
+    .count { color: var(--muted); font-size: 13px; }
+    ul.items { list-style: none; padding: 0; margin: 10px 0 0; display: grid; grid-template-columns: 1fr; gap: 6px; }
+    li.item { background: rgba(255,255,255,.02); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; display: flex; align-items: center; gap: 10px; }
+    .item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent-2); cursor: pointer; }
+    .label { flex: 1; }
+    .tag { font-size: 11px; color: #93c5fd; background: rgba(56,189,248,.1); border: 1px solid rgba(56,189,248,.3); padding: 2px 8px; border-radius: 999px; }
+    footer { margin: 26px 0 10px; color: var(--muted); font-size: 12px; }
+    .strike { text-decoration: line-through; color: #9ca3af; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Checklist – Enxoval do Bebé</h1>
+        <div class="subtitle">Itens essenciais + opcionais úteis • Persistência automática • Exportar/Importar estado</div>
+      </div>
+      <div class="subtitle" id="summary"></div>
+    </header>
+
+    <div class="toolbar" role="toolbar" aria-label="Ferramentas">
+      <label>
+        <input id="toggle-pendentes" type="checkbox" /> Mostrar só por fazer
+      </label>
+      <input id="search" class="input" type="search" placeholder="Procurar item… (ex: fraldas, manta)" aria-label="Pesquisar" />
+      <select id="preset" class="input" title="Conjuntos rápidos">
+        <option value="">Conjuntos rápidos…</option>
+        <option value="essenciais">Marcar só essenciais</option>
+        <option value="tudo">Marcar tudo</option>
+        <option value="nada">Desmarcar tudo</option>
+      </select>
+      <button id="export" class="btn">Exportar estado (.json)</button>
+      <label class="btn" for="import-file">Importar estado</label>
+      <input id="import-file" type="file" accept="application/json" class="hidden" />
+      <button id="reset" class="btn btn-danger">Repor estado</button>
+    </div>
+
+    <main class="grid" id="categories" aria-live="polite"></main>
+
+    <footer>
+      <p>
+        Guardado automaticamente neste navegador (<strong>localStorage</strong>). Para sincronizar noutros dispositivos, usa <em>Exportar</em> e envia o ficheiro para o teu repositório (ou partilha e <em>Importa</em> lá).
+      </p>
+      <p>
+        Dica: Podes editar esta lista no código (adicionar/remover itens). Mantém os <code>id</code> para não perderes o progresso.
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    // ===== CONFIG =====
+    const STORAGE_KEY = 'baby-checklist:v1';
+
+    const DATA = [
+      {
+        id: 'roupa', title: 'Roupa (0–3 meses)', tag: 'Essencial', items: [
+          { id: 'rb-01', text: '6–8 bodies manga comprida', essential: true },
+          { id: 'rb-02', text: '6–8 babygrows/pijamas com pés', essential: true },
+          { id: 'rb-03', text: '2–3 conjuntos de roupa para sair', essential: false },
+          { id: 'rb-04', text: '4–6 pares de meias', essential: true },
+          { id: 'rb-05', text: 'Gorro (1–2)', essential: true },
+          { id: 'rb-06', text: '2 casaquinhos/cardigans', essential: true },
+          { id: 'rb-07', text: 'Luvas anti-arranhões (1–2)', essential: false },
+          { id: 'rb-08', text: 'Manta de algodão ou lã (2)', essential: true },
+        ]
+      },
+      {
+        id: 'sono', title: 'Sono / Quarto', tag: 'Essencial', items: [
+          { id: 'sn-01', text: 'Berço ou cama de grades', essential: true },
+          { id: 'sn-02', text: 'Colchão apropriado para recém-nascido', essential: true },
+          { id: 'sn-03', text: 'Capas de colchão impermeáveis (2–3)', essential: true },
+          { id: 'sn-04', text: 'Conjuntos de lençóis (3–4)', essential: true },
+          { id: 'sn-05', text: 'Saco de dormir de bebé (1–2)', essential: true },
+          { id: 'sn-06', text: 'Manta extra', essential: false },
+          { id: 'sn-07', text: 'Luz de presença (opcional)', essential: false },
+        ]
+      },
+      {
+        id: 'higiene', title: 'Higiene & Banho', tag: 'Essencial', items: [
+          { id: 'hg-01', text: 'Banheira de bebé', essential: true },
+          { id: 'hg-02', text: 'Toalha com capuz (2)', essential: true },
+          { id: 'hg-03', text: 'Toalhitas sem perfume (2–3 pacotes)', essential: true },
+          { id: 'hg-04', text: 'Fraldas RN / T1 (1–2 embalagens)', essential: true },
+          { id: 'hg-05', text: 'Creme muda-fralda (óxido de zinco)', essential: true },
+          { id: 'hg-06', text: 'Esponja suave ou pano', essential: false },
+          { id: 'hg-07', text: 'Tesoura pontas arredondadas ou lima', essential: false },
+          { id: 'hg-08', text: 'Soro fisiológico + compressas', essential: true },
+          { id: 'hg-09', text: 'Termómetro de banho', essential: false },
+          { id: 'hg-10', text: 'Termómetro corporal', essential: true },
+          { id: 'hg-11', text: 'Shampoo/gel neutro para bebé', essential: true },
+        ]
+      },
+      {
+        id: 'alimentacao', title: 'Alimentação', tag: 'Essencial/Depende', items: [
+          { id: 'al-01', text: 'Biberões 0+ (2–4) sem BPA', essential: true },
+          { id: 'al-02', text: 'Escovilhão para biberões', essential: true },
+          { id: 'al-03', text: 'Babetes (6)', essential: true },
+          { id: 'al-04', text: 'Almofada de amamentação', essential: false },
+          { id: 'al-05', text: 'Esterilizador (opcional)', essential: false },
+          { id: 'al-06', text: 'Bomba tira-leite (opcional)', essential: false },
+        ]
+      },
+      {
+        id: 'fralda', title: 'Troca de Fralda', tag: 'Essencial', items: [
+          { id: 'fr-01', text: 'Muda-fraldas (móvel ou portátil)', essential: true },
+          { id: 'fr-02', text: 'Sacos para fraldas', essential: false },
+        ]
+      },
+      {
+        id: 'passeio', title: 'Passeio & Segurança', tag: 'Essencial', items: [
+          { id: 'ps-01', text: 'Ovo (cadeirinha auto homologada)', essential: true },
+          { id: 'ps-02', text: 'Carrinho de bebé', essential: true },
+          { id: 'ps-03', text: 'Manta para o carrinho', essential: false },
+          { id: 'ps-04', text: 'Capa de chuva (opcional)', essential: false },
+          { id: 'ps-05', text: 'Marsúpio/sling (opcional)', essential: false },
+        ]
+      },
+      {
+        id: 'monitor', title: 'Monitorização (Opcional)', tag: 'Opcional', items: [
+          { id: 'mn-01', text: 'Intercomunicador áudio/vídeo', essential: false },
+        ]
+      },
+      {
+        id: 'maternidade', title: 'Mala de Maternidade', tag: 'Essencial', items: [
+          { id: 'mt-01', text: '3–4 mudas completas p/ bebé', essential: true },
+          { id: 'mt-02', text: 'Manta para transporte', essential: true },
+          { id: 'mt-03', text: 'Fraldas RN', essential: true },
+          { id: 'mt-04', text: 'Toalhitas', essential: true },
+          { id: 'mt-05', text: 'Documentos da mãe + exames', essential: true },
+          { id: 'mt-06', text: 'Roupão + chinelos + higiene da mãe', essential: true },
+        ]
+      },
+      {
+        id: 'mais-tarde', title: 'Para comprar mais tarde', tag: 'Depois', items: [
+          { id: 'lt-01', text: 'Pratos/colheres (6m+)', essential: false },
+          { id: 'lt-02', text: 'Cadeira da papa', essential: false },
+          { id: 'lt-03', text: 'Brinquedos de estímulo', essential: false },
+        ]
+      },
+    ];
+
+    // ===== STATE =====
+    const state = {
+      checked: new Map(),     // id -> boolean
+      filterPendentes: false,
+      search: '',
+    };
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const obj = JSON.parse(raw);
+        if (obj && obj.checked) {
+          Object.entries(obj.checked).forEach(([k,v]) => state.checked.set(k, !!v));
+        }
+      } catch (e) { console.warn('Falha ao ler estado:', e); }
+    }
+    function saveState() {
+      const payload = { checked: Object.fromEntries(state.checked) };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      updateSummary();
+    }
+
+    // ===== RENDER =====
+    const $categories = document.getElementById('categories');
+
+    function render() {
+      $categories.innerHTML = '';
+      DATA.forEach(cat => {
+        const sec = document.createElement('section');
+        sec.className = 'category';
+        const header = document.createElement('div');
+        header.className = 'cat-title';
+        const h2 = document.createElement('h2');
+        h2.textContent = cat.title;
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = cat.tag;
+        const count = document.createElement('span');
+        count.className = 'count';
+
+        header.append(h2, tag, count);
+        sec.appendChild(header);
+
+        const ul = document.createElement('ul');
+        ul.className = 'items';
+
+        const filtered = cat.items.filter(it => {
+          const matchesSearch = state.search ? it.text.toLowerCase().includes(state.search) : true;
+          const isDone = !!state.checked.get(it.id);
+          const matchesPend = state.filterPendentes ? !isDone : true;
+          return matchesSearch && matchesPend;
+        });
+
+        filtered.forEach(it => {
+          const li = document.createElement('li');
+          li.className = 'item';
+
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = !!state.checked.get(it.id);
+          cb.id = it.id;
+          cb.addEventListener('change', () => {
+            state.checked.set(it.id, cb.checked);
+            saveState();
+            // Update strike-through live
+            label.className = 'label' + (cb.checked ? ' strike' : '');
+            updateCounts();
+          });
+
+          const label = document.createElement('label');
+          label.className = 'label' + (cb.checked ? ' strike' : '');
+          label.setAttribute('for', it.id);
+          label.textContent = it.text + (it.essential ? '' : '');
+
+          li.append(cb, label);
+          ul.appendChild(li);
+        });
+
+        sec.appendChild(ul);
+        $categories.appendChild(sec);
+      });
+      updateCounts();
+      updateSummary();
+    }
+
+    function updateCounts() {
+      // Update per-category counts
+      document.querySelectorAll('section.category').forEach((sec, idx) => {
+        const cat = DATA[idx];
+        const total = cat.items.length;
+        const done = cat.items.reduce((acc, it) => acc + (state.checked.get(it.id) ? 1 : 0), 0);
+        const countEl = sec.querySelector('.count');
+        countEl.textContent = `${done}/${total}`;
+      });
+    }
+
+    function updateSummary() {
+      const all = DATA.flatMap(c => c.items);
+      const total = all.length;
+      const done = all.reduce((acc, it) => acc + (state.checked.get(it.id) ? 1 : 0), 0);
+      const pct = Math.round((done/total)*100);
+      document.getElementById('summary').textContent = `Concluído: ${done}/${total} (${pct}%)`;
+    }
+
+    // ===== EXPORT/IMPORT/RESET =====
+    function exportState() {
+      const payload = { version: 1, when: new Date().toISOString(), data: Object.fromEntries(state.checked) };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'checklist-bebe-estado.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    function importState(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const obj = JSON.parse(reader.result);
+          if (obj && obj.data && typeof obj.data === 'object') {
+            state.checked = new Map(Object.entries(obj.data).map(([k,v]) => [k, !!v]));
+            saveState();
+            render();
+          } else {
+            alert('Ficheiro inválido.');
+          }
+        } catch (e) { alert('Erro ao importar: ' + e.message); }
+      };
+      reader.readAsText(file);
+    }
+    function resetState() {
+      if (confirm('Queres mesmo repor o estado? Isto desmarca tudo.')) {
+        state.checked = new Map();
+        saveState();
+        render();
+      }
+    }
+
+    // ===== PRESETS =====
+    function applyPreset(kind) {
+      const all = DATA.flatMap(c => c.items);
+      if (kind === 'essenciais') {
+        all.forEach(it => state.checked.set(it.id, !!it.essential));
+      } else if (kind === 'tudo') {
+        all.forEach(it => state.checked.set(it.id, true));
+      } else if (kind === 'nada') {
+        all.forEach(it => state.checked.set(it.id, false));
+      }
+      saveState();
+      render();
+    }
+
+    // ===== EVENTS =====
+    document.getElementById('toggle-pendentes').addEventListener('change', (e) => {
+      state.filterPendentes = e.target.checked;
+      render();
+    });
+    document.getElementById('search').addEventListener('input', (e) => {
+      state.search = e.target.value.trim().toLowerCase();
+      render();
+    });
+    document.getElementById('export').addEventListener('click', exportState);
+    document.getElementById('import-file').addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) importState(file);
+      e.target.value = '';
+    });
+    document.getElementById('reset').addEventListener('click', resetState);
+    document.getElementById('preset').addEventListener('change', (e) => {
+      const v = e.target.value; if (!v) return; applyPreset(v); e.target.value='';
+    });
+
+    // ===== INIT =====
+    loadState();
+    render();
+  </script>
+</body>
+</html>
